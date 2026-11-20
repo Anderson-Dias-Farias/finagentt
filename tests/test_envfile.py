@@ -90,5 +90,33 @@ class TestPostgresInfo(unittest.TestCase):
         self.assertFalse(st["used_for_journal"])
 
 
+class TestOrdemDeCarga(unittest.TestCase):
+    """Regression: .env tem que entrar antes de os modulos lerem o ambiente.
+
+    journal.DB_PATH e ops.BACKUP_DIR sao resolvidos no import — se o .env carregar
+    depois, FINAGENT_DB/FINAGENT_DATA no arquivo sao silenciosamente ignorados.
+    """
+
+    def test_env_define_caminho_no_import(self):
+        import subprocess
+
+        root = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as d:
+            env_file = Path(d) / "custom.env"
+            env_file.write_text(f"FINAGENT_DB={d}/journal.db\nFINAGENT_BACKUP_KEEP=21\n")
+            env = {k: v for k, v in os.environ.items()
+                   if not k.startswith("FINAGENT_") and k != "DATABASE_URL"}
+            env["FINAGENT_ENV_FILE"] = str(env_file)
+            out = subprocess.run(
+                [sys.executable, "-c",
+                 "from finagent import journal, ops; print(journal.DB_PATH); print(ops.KEEP_BACKUPS)"],
+                cwd=root, env=env, capture_output=True, text=True, timeout=60,
+            )
+        self.assertEqual(out.returncode, 0, out.stderr)
+        linhas = out.stdout.strip().splitlines()
+        self.assertEqual(linhas[0], f"{d}/journal.db")
+        self.assertEqual(linhas[1], "21")
+
+
 if __name__ == "__main__":
     unittest.main()

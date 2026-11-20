@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import analysis, envfile, ops
+from . import analysis, ops
 from .report import to_json
 
 WEB = Path(__file__).resolve().parent.parent / "web"
@@ -142,7 +142,6 @@ def make_server(host: str = "127.0.0.1", port: int = 3000) -> ThreadingHTTPServe
 
 def serve(host: str = "127.0.0.1", port: int = 3000, monitor: bool = False,
           symbols: list[str] | None = None, tf: str = "15m", interval: int = 300) -> int:
-    envfile.load()  # .env da raiz (nao sobrescreve env real)
     storage = ops.init_storage()
     started = ops.start_background()
     if monitor:
