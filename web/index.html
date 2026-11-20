@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>finagent — cockpit de trade</title>
+<style>
+  :root{
+    --bg:#0a0d12; --bg2:#0f131a; --card:#121722; --card2:#161c28;
+    --line:#212938; --line2:#2c3648;
+    --txt:#e7ecf3; --mut:#8b97a8; --dim:#5d6a7d;
+    --up:#22c55e; --dn:#ef4444; --warn:#f59e0b; --info:#38bdf8; --acc:#a78bfa;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:radial-gradient(1200px 600px at 15% -10%,#141b28 0%,var(--bg) 55%) fixed;
+       color:var(--txt);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1360px;margin:0 auto;padding:0 18px 60px}
+
+  header{position:sticky;top:0;z-index:20;backdrop-filter:blur(10px);
+    background:rgba(10,13,18,.86);border-bottom:1px solid var(--line)}
+  .bar{max-width:1360px;margin:0 auto;padding:12px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .brand{font-family:var(--mono);font-weight:700;letter-spacing:.14em;font-size:15px}
+  .brand span{color:var(--acc)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--dim);box-shadow:0 0 0 3px rgba(93,106,125,.15)}
+  .dot.on{background:var(--up);box-shadow:0 0 0 3px rgba(34,197,94,.16)}
+  .dot.err{background:var(--dn);box-shadow:0 0 0 3px rgba(239,68,68,.16)}
+  .ctl{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap}
+  input,select,button{font-family:var(--mono);font-size:13px;color:var(--txt);
+    background:var(--card);border:1px solid var(--line2);border-radius:8px;padding:7px 10px;outline:none}
+  input:focus,select:focus{border-color:var(--acc)}
+  input#symbol{width:118px;text-transform:uppercase;letter-spacing:.06em}
+  input#equity{width:92px}
+  button{cursor:pointer;transition:.15s}
+  button:hover{background:var(--card2);border-color:#3b475e}
+  button.primary{background:linear-gradient(180deg,#6d28d9,#5b21b6);border-color:#7c3aed;font-weight:600}
+  button.primary:hover{filter:brightness(1.12)}
+  .stamp{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.04em}
+
+  /* hero */
+  .hero{display:grid;grid-template-columns:1.15fr .85fr;gap:16px;margin:20px 0 16px}
+  @media(max-width:860px){.hero{grid-template-columns:1fr}}
+  .panel{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:14px}
+  .hero .panel{padding:18px 20px}
+  .verdict-line{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  .dir{font-family:var(--mono);font-size:44px;font-weight:800;letter-spacing:-.02em;line-height:1}
+  .dir.long{color:var(--up)}.dir.short{color:var(--dn)}
+  .status{font-family:var(--mono);font-size:11px;letter-spacing:.12em;padding:5px 9px;border-radius:6px;
+    border:1px solid;text-transform:uppercase}
+  .s-exec{color:#4ade80;border-color:rgba(74,222,128,.35);background:rgba(34,197,94,.09)}
+  .s-wait{color:#fbbf24;border-color:rgba(251,191,36,.35);background:rgba(245,158,11,.09)}
+  .s-none{color:#94a3b8;border-color:rgba(148,163,184,.3);background:rgba(148,163,184,.07)}
+  .setup{margin-top:12px;color:var(--mut);font-size:13.5px}
+  .conf{margin-top:16px}
+  .conf .lab{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--dim);
+    letter-spacing:.08em;margin-bottom:6px}
+  .track{height:8px;border-radius:99px;background:#0b0f16;border:1px solid var(--line);overflow:hidden}
+  .fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#7c3aed,#38bdf8)}
+  .gates{margin-top:16px;display:flex;flex-direction:column;gap:6px}
+  .gate{font-size:12.5px;color:#ffd9a8;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.22);
+    border-left:3px solid var(--warn);border-radius:6px;padding:6px 9px}
+  .price-box{display:flex;flex-direction:column;justify-content:center;gap:6px}
+  .px{font-family:var(--mono);font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1}
+  .px .cur{font-size:18px;color:var(--dim);margin-right:4px}
+  .chg{font-family:var(--mono);font-size:14px;font-weight:600}
+  .up{color:var(--up)}.dn{color:var(--dn)}.mut{color:var(--mut)}.dim{color:var(--dim)}
+  .mini{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+  .mini div{background:#0c1118;border:1px solid var(--line);border-radius:9px;padding:9px 10px}
+  .mini .k{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--dim);text-transform:uppercase}
+  .mini .v{font-family:var(--mono);font-size:13px;margin-top:3px}
+
+  /* grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;margin-top:14px}
+  .card{padding:0;overflow:hidden}
+  .card h2{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut);
+    margin:0;padding:13px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;
+    background:#0e131c}
+  .card h2 .hint{font-size:10px;letter-spacing:.04em;color:var(--dim);text-transform:none}
+  .card .body{padding:14px 16px}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:13px}
+  .kv .k{color:var(--mut);white-space:nowrap}
+  .kv .v{font-family:var(--mono);text-align:right}
+  .big{font-family:var(--mono);font-size:26px;font-weight:700;letter-spacing:-.01em}
+  .row{display:flex;gap:10px;align-items:baseline}
+  .sub{font-size:11.5px;color:var(--dim);font-family:var(--mono)}
+  .divider{height:1px;background:var(--line);margin:12px 0}
+  .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;padding:2px 7px;border-radius:5px;
+    border:1px solid var(--line2);color:var(--mut)}
+  .tag.up{color:var(--up);border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.08)}
+  .tag.dn{color:var(--dn);border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.08)}
+  .tag.warn{color:var(--warn);border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.08)}
+
+  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+  th{text-align:right;color:var(--dim);font-weight:500;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+    padding:0 0 7px;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left}
+  td{padding:6px 0;border-bottom:1px solid rgba(33,41,56,.55)}
+  tr:last-child td{border-bottom:none}
+
+  .pat{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:9px 0;border-bottom:1px solid rgba(33,41,56,.55)}
+  .pat:last-child{border-bottom:none}
+  .pat .nm{font-weight:600;font-size:13px}
+  .pat .dt{grid-column:1/-1;font-size:11.5px;color:var(--dim);font-family:var(--mono)}
+  .pat .cf{font-family:var(--mono);font-size:12px;text-align:right}
+  .bar{height:4px;background:#0b0f16;border-radius:99px;margin-top:4px;overflow:hidden}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,#7c3aed,#38bdf8)}
+
+  .plan{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:11px}
+  .plan div{background:#0c1118;border:1px solid var(--line);border-radius:9px;padding:10px 11px}
+  .plan .k{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--dim);text-transform:uppercase}
+  .plan .v{font-family:var(--mono);font-size:15px;margin-top:4px}
+  .plan .n{font-size:10.5px;color:var(--dim);font-family:var(--mono);margin-top:2px}
+  .comp{display:grid;grid-template-columns:104px 1fr 52px;gap:10px;align-items:center;margin-bottom:9px;font-size:12px}
+  .comp .nm{color:var(--mut);font-family:var(--mono);font-size:11px}
+  .comp .bar2{height:6px;background:#0b0f16;border:1px solid var(--line);border-radius:99px;position:relative;overflow:hidden}
+  .comp .bar2 i{position:absolute;top:0;bottom:0;border-radius:99px}
+  .comp .val{font-family:var(--mono);text-align:right;font-size:11.5px}
+  .note{font-size:11px;color:var(--dim);font-family:var(--mono);margin-top:2px;line-height:1.35}
+
+  .load{padding:34px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12px;letter-spacing:.1em}
+  .errbox{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-left:3px solid var(--dn);
+    border-radius:8px;padding:12px 14px;color:#fecaca;font-family:var(--mono);font-size:12px;margin-top:16px;white-space:pre-wrap}
+  footer{margin-top:26px;padding-top:14px;border-top:1px solid var(--line);color:var(--dim);font-size:11px;
+    display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .flash{animation:fl .9s ease}
+  @keyframes fl{0%{opacity:.35}100%{opacity:1}}
+  .span2{grid-column:span 2}
+  @media(max-width:760px){
+    .grid{grid-template-columns:1fr}
+    .span2{grid-column:span 1}
+    .dir{font-size:34px}
+    .px{font-size:30px}
+    .comp{grid-template-columns:82px 1fr 44px;gap:8px}
+    .bar{padding:10px 14px}
+    .ctl{width:100%;margin-left:0}
+    input#symbol{flex:1;width:auto}
+    .mini{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .plan{grid-template-columns:repeat(auto-fit,minmax(104px,1fr))}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="dot" id="dot"></div>
+    <div class="brand">FIN<span>AGENT</span></div>
+    <div class="ctl">
+      <input id="symbol" value="BTCUSDT" spellcheck="false" autocomplete="off">
+      <select id="tf">
+        <option value="5m">5m</option><option value="15m">15m</option>
+        <option value="1h" selected>1h</option><option value="4h">4h</option>
+        <option value="1d">1d</option>
+      </select>
+      <input id="equity" value="10000" title="banca (USD)">
+      <button class="primary" id="go">Analisar</button>
+      <span class="stamp" id="stamp">—</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="err"></div>
+  <div id="app"><div class="panel"><div class="load">CARREGANDO DADOS DA BINANCE…</div></div></div>
+  <footer>
+    <span id="foot">finagent · dados públicos Binance Spot+Futures · sem execução de ordens</span>
+    <span>não é recomendação de investimento · gestão de risco é obrigatória</span>
+  </footer>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const br = (v,d=2) => (v==null||isNaN(v)) ? '—' : Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const px = v => (v==null||isNaN(v)) ? '—' : (Math.abs(v)>=1000 ? br(v,2) : Math.abs(v)>=1 ? br(v,4) : br(v,6));
+const usd = v => { if(v==null||isNaN(v)) return '—'; const a=Math.abs(v), s=v<0?'-':'';
+  if(a>=1e9) return s+'$'+br(a/1e9,2)+'B'; if(a>=1e6) return s+'$'+br(a/1e6,2)+'M';
+  if(a>=1e3) return s+'$'+br(a/1e3,1)+'K'; return s+'$'+br(a,0); };
+const sgn = v => (v==null||isNaN(v)) ? '—' : (v>0?'+':'')+br(v,2);
+const cls = v => v>0?'up':(v<0?'dn':'mut');
+const esc = s => String(s??'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+
+function posLabel(p){
+  return {ACIMA_VAH:'acima do VAH', ABAIXO_VAL:'abaixo do VAL', DENTRO_VA:'dentro da área de valor', NO_POC:'no POC'}[p] || (p||'—');
+}
+
+function render(d){
+  const v = d.verdict || {}, p = v.plan || {}, ind = d.ind || {}, fl = d.flow || {},
+        pr = d.prints || {}, bk = d.book || {}, st = d.structure || {}, dv = d.deriv || {},
+        pt = d.patterns || {}, vp = d.vp || {}, op = vp.recent || vp, tk = d.ticker || {};
+  const scls = v.status === 'EXECUTAVEL' ? 's-exec' : (String(v.status||'').includes('SEM') ? 's-none' : 's-wait');
+  const dcls = v.direction === 'LONG' ? 'long' : 'short';
+  const chg = tk.change_24h_pct || 0;
+
+  const gates = (v.gates||[]).map(g=>`<div class="gate">! ${esc(g)}</div>`).join('');
+
+  const comps = (v.components||[]).map(c=>{
+    const val = Number(c.value)||0, w = Math.min(Math.abs(val),1)*50;
+    const left = val>=0 ? 50 : 50-w;
+    const col = val>=0 ? 'linear-gradient(90deg,#15803d,#22c55e)' : 'linear-gradient(90deg,#ef4444,#b91c1c)';
+    return `<div class="comp">
+      <div class="nm">${esc(c.name)}</div>
+      <div><div class="bar2"><i style="left:${left}%;width:${Math.max(w,1.2)}%;background:${col}"></i></div>
+      <div class="note">${esc(c.note)}</div></div>
+      <div class="val ${cls(val)}">${sgn(val)}</div></div>`;
+  }).join('');
+
+  const slip = (bk.slippage||[]).map(s=>`<tr><td>${usd(s.notional)}</td>
+    <td>${br(s.buy_slippage_bps,2)}</td><td>${br(s.sell_slippage_bps,2)}</td>
+    <td>${s.complete?'ok':'raso'}</td></tr>`).join('');
+
+  const pats = (pt.patterns||[]).length ? (pt.patterns||[]).map(q=>{
+    const dc = q.direction==='ALTA'?'up':(q.direction==='BAIXA'?'dn':'mut');
+    return `<div class="pat">
+      <div class="nm">${esc(q.name)} <span class="tag ${dc}">${esc(q.direction)}</span>
+        <span class="tag">${esc(q.status)}</span></div>
+      <div class="cf ${dc}">${q.conf}/100</div>
+      <div class="dt">${esc(q.detail)}${q.target!=null?' · alvo '+px(q.target):''}
+        <div class="bar"><i style="width:${q.conf}%"></i></div></div>
+    </div>`;}).join('')
+    : '<div class="dim" style="font-family:var(--mono);font-size:12px">nenhum padrão clássico fechado nesta janela</div>';
+
+  const zones = (st.zones||[]).slice(0,4).map(z=>`<tr><td>${esc(z.kind)} · ${z.touches}x</td>
+    <td>${px(z.price)}</td><td class="${z.dist_pct>0?'dn':'up'}">${sgn(z.dist_pct)}%</td></tr>`).join('');
+
+  const trend = ['1d','4h','base'].map(k=>{
+    const t=(d.trend||{})[k]||{}; const c=t.bias>0?'up':(t.bias<0?'dn':'mut');
+    const nm={ '1d':'1D','4h':'4H','base':d.tf||'base' }[k];
+    return `<tr><td>${nm}</td><td class="${c}" style="text-align:right">${t.bias>0?'alta':(t.bias<0?'baixa':'neutro')}</td></tr>`;
+  }).join('');
+
+  const html = `
+  <div class="hero">
+    <div class="panel">
+      <div class="verdict-line">
+        <div class="dir ${dcls}">${esc(v.direction||'—')}</div>
+        <div class="status ${scls}">${esc(v.status||'—')}</div>
+      </div>
+      <div class="setup">${esc(v.setup||'sem setup')}</div>
+      <div class="conf">
+        <div class="lab"><span>CONVICÇÃO</span><span>${br(v.conviction,0)}/100</span></div>
+        <div class="track"><div class="fill" style="width:${Math.min(v.conviction||0,100)}%"></div></div>
+      </div>
+      ${gates?`<div class="gates">${gates}</div>`:'<div class="gates"><div class="gate" style="border-left-color:var(--up);background:rgba(34,197,94,.07);border-color:rgba(34,197,94,.22);color:#a7f3d0">sem gate ativo</div></div>'}
+    </div>
+    <div class="panel price-box">
+      <div class="px"><span class="cur">$</span>${px(d.price)}</div>
+      <div class="chg ${cls(chg)}">${sgn(chg)}% <span class="dim" style="font-size:12px">24h</span></div>
+      <div class="mini">
+        <div><div class="k">máx 24h</div><div class="v">${px(tk.high_24h)}</div></div>
+        <div><div class="k">mín 24h</div><div class="v">${px(tk.low_24h)}</div></div>
+        <div><div class="k">vol 24h</div><div class="v">${usd(tk.quote_volume_24h)}</div></div>
+      </div>
+      <div class="sub" style="margin-top:12px">ATR ${px(d.atr)} · ${br(ind.atr_pct,2)}% · RSI ${br(ind.rsi,1)}</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel card">
+      <h2>Fluxo agressor <span class="hint">${fl.lookback||0} candles</span></h2>
+      <div class="body">
+        <div class="big ${cls(fl.cvd_usd)}">${usd(fl.cvd_usd)}</div>
+        <div class="sub">CVD na janela · inclinação ${br((fl.cvd_slope_norm||0)*100,2)}</div>
+        <div class="divider"></div>
+        <div class="kv">
+          <span class="k">Imbalance</span><span class="v ${cls(fl.imbalance_pct)}">${sgn(fl.imbalance_pct)}%</span>
+          <span class="k">Compra</span><span class="v up">${usd(fl.buy_usd)}</span>
+          <span class="k">Venda</span><span class="v dn">${usd(fl.sell_usd)}</span>
+          <span class="k">Último candle</span><span class="v ${cls(fl.last_candle_delta)}">${usd(fl.last_candle_delta)}</span>
+          <span class="k">Buy ratio</span><span class="v">${br((fl.last_candle_buy_ratio||0)*100,1)}%</span>
+          <span class="k">Divergência</span><span class="v">${esc(fl.divergence)}</span>
+        </div>
+        <div class="divider"></div>
+        <div class="kv">
+          <span class="k">Prints</span><span class="v">${pr.count||0} em ${br(pr.window_s,0)}s</span>
+          <span class="k">Ticket médio</span><span class="v">${usd(pr.avg_ticket)}</span>
+          <span class="k">Mediana</span><span class="v">${usd(pr.median_ticket)}</span>
+          <span class="k">P90 / P99</span><span class="v">${usd(pr.p90_ticket)} / ${usd(pr.p99_ticket)}</span>
+          <span class="k">Ordens grandes</span><span class="v">${pr.large_count||0} · ${sgn(pr.large_bias_pct)}%</span>
+        </div>
+        ${pr.limited_sample?'<div class="sub" style="margin-top:8px">amostra limitada aos 1000 prints mais recentes</div>':''}
+      </div>
+    </div>
+
+    <div class="panel card">
+      <h2>Perfil de volume <span class="hint">operacional manda</span></h2>
+      <div class="body">
+        <div class="row"><span class="big">${px(op.poc)}</span><span class="sub">POC operacional</span></div>
+        <div class="sub">preço ${posLabel(op.position)} · dist ${sgn(op.dist_poc_pct)}%</div>
+        <div class="divider"></div>
+        <div class="kv">
+          <span class="k">VAH</span><span class="v">${px(op.vah)}</span>
+          <span class="k">VAL</span><span class="v">${px(op.val)}</span>
+          <span class="k">Janela</span><span class="v">${op.candles||0} candles</span>
+          <span class="k">HVN</span><span class="v">${(op.hvn||[]).slice(0,3).map(px).join(' · ')||'—'}</span>
+          <span class="k">LVN</span><span class="v">${(op.lvn||[]).slice(0,3).map(px).join(' · ')||'—'}</span>
+        </div>
+        <div class="divider"></div>
+        <div class="sub" style="margin-bottom:6px">estrutural (contexto)</div>
+        <div class="kv">
+          <span class="k">POC</span><span class="v">${px(vp.poc)}</span>
+          <span class="k">VA</span><span class="v">${px(vp.val)} – ${px(vp.vah)}</span>
+          <span class="k">Candles</span><span class="v">${vp.candles||0}</span>
+          <span class="k">Vol. relativo</span><span class="v">${br(d.rel_volume,2)}x</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel card">
+      <h2>Liquidez / book</h2>
+      <div class="body">
+        <div class="kv">
+          <span class="k">Spread</span><span class="v">${br(bk.spread_bps,2)} bps</span>
+          <span class="k">Mid</span><span class="v">${px(bk.mid)}</span>
+          <span class="k">Imbalance 0.5%</span><span class="v ${cls(bk.imbalance_05_pct)}">${sgn(bk.imbalance_05_pct)}%</span>
+          <span class="k">Profundidade</span><span class="v">${usd(bk.depth_05_usd)}</span>
+          <span class="k">Score</span><span class="v">${bk.score!=null?bk.score+'/100':'—'}</span>
+        </div>
+        <div class="divider"></div>
+        <table><thead><tr><th>notional</th><th>compra</th><th>venda</th><th>fill</th></tr></thead>
+        <tbody>${slip||'<tr><td colspan="4" class="dim">sem dados</td></tr>'}</tbody></table>
+      </div>
+    </div>
+
+    <div class="panel card">
+      <h2>Estrutura</h2>
+      <div class="body">
+        <div class="row"><span class="big" style="font-size:18px">${esc(st.sequence||'—')}</span></div>
+        <div class="sub" style="margin-top:6px">${esc(st.bos||'sem BOS')}${st.choch?' · '+esc(st.choch):''}${st.sweep?' · '+esc(st.sweep):''}</div>
+        <div class="divider"></div>
+        <div class="kv">
+          <span class="k">Swing high</span><span class="v">${px(st.swing_high)}</span>
+          <span class="k">Swing low</span><span class="v">${px(st.swing_low)}</span>
+          <span class="k">Range</span><span class="v">${px(st.range_low)} – ${px(st.range_high)}</span>
+          <span class="k">Pos. no range</span><span class="v">${br(st.range_pos_pct,1)}%</span>
+          <span class="k">Candle</span><span class="v">${esc(st.candle_pattern||'—')}</span>
+        </div>
+        <div class="divider"></div>
+        <table><thead><tr><th>zona</th><th>preço</th><th>dist</th></tr></thead>
+        <tbody>${zones||'<tr><td colspan="3" class="dim">—</td></tr>'}</tbody></table>
+      </div>
+    </div>
+
+    <div class="panel card">
+      <h2>Derivativos</h2>
+      <div class="body">
+        <div class="kv">
+          <span class="k">Funding</span><span class="v ${cls(dv.funding_pct)}">${br(dv.funding_pct,4)}% /8h</span>
+          <span class="k">Anualizado</span><span class="v ${cls(dv.funding_annual_pct)}">${sgn(dv.funding_annual_pct)}%</span>
+          <span class="k">Open interest</span><span class="v">${usd(dv.oi_usd)}</span>
+          <span class="k">OI 1h / 24h</span><span class="v">${sgn(dv.oi_change_1h_pct)}% / ${sgn(dv.oi_change_24h_pct)}%</span>
+          <span class="k">Long/Short</span><span class="v">${br(dv.ls_ratio,2)} (${br(dv.ls_long_pct,0)}% long)</span>
+          <span class="k">Taker buy</span><span class="v">${br(dv.taker_buy_ratio,2)}</span>
+          <span class="k">Basis</span><span class="v">${sgn(dv.basis_pct)}%</span>
+        </div>
+        <div class="divider"></div>
+        <div class="tag ${String(dv.regime||'').includes('ALTA')?'up':(String(dv.regime||'').includes('BAIXA')?'dn':'')}">${esc(dv.regime||'regime n/d')}</div>
+      </div>
+    </div>
+
+    <div class="panel card">
+      <h2>Padrões gráficos <span class="hint">viés ${esc(pt.bias||'—')}</span></h2>
+      <div class="body">${pats}</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel card span2" style="min-width:0">
+      <h2>Plano de trade <span class="hint">banca ${usd(p.equity)} · risco ${br(p.risk_pct,1)}%</span></h2>
+      <div class="body">
+        <div class="plan">
+          <div><div class="k">entrada</div><div class="v">${px(p.entry)}</div><div class="n">${esc(p.entry_note||'')}</div></div>
+          <div><div class="k">stop</div><div class="v dn">${px(p.stop)}</div><div class="n">${br(p.risk_pct_price,2)}% do preço</div></div>
+          <div><div class="k">alvo 1</div><div class="v up">${px(p.tp1)}</div><div class="n">RR ${br(p.rr_tp1,2)}</div></div>
+          <div><div class="k">alvo 2</div><div class="v up">${px(p.tp2)}</div><div class="n">RR ${br(p.rr_tp2,2)}</div></div>
+          <div><div class="k">tamanho</div><div class="v">${br(p.size_units,4)}</div><div class="n">${usd(p.size_usd)}</div></div>
+          <div><div class="k">risco máx</div><div class="v">${usd(p.risk_usd)}</div><div class="n">${esc(p.invalidation||'')}</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel card">
+      <h2>Tendência MTF</h2>
+      <div class="body"><table><tbody>${trend}</tbody></table>
+        <div class="divider"></div>
+        <div class="kv">
+          <span class="k">EMA20 / 50</span><span class="v">${px(ind.ema20)} / ${px(ind.ema50)}</span>
+          <span class="k">EMA200</span><span class="v">${px(ind.ema200)}</span>
+          <span class="k">VWAP 24</span><span class="v">${px(ind.vwap)}</span>
+          <span class="k">ADX</span><span class="v">${br((ind.adx||{}).adx,1)}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel card" style="margin-top:14px">
+    <h2>Score de confluência <span class="hint">${br(v.conviction,0)}/100 para ${esc(v.direction||'—')}</span></h2>
+    <div class="body">${comps||'<div class="dim">—</div>'}</div>
+  </div>`;
+
+  const app = $('#app'); app.innerHTML = html; app.classList.remove('flash'); void app.offsetWidth; app.classList.add('flash');
+  $('#stamp').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR');
+  $('#foot').textContent = `finagent · ${d.symbol} ${d.tf} · dados públicos Binance Spot+Futures · sem execução de ordens`;
+}
+
+let timer = null;
+async function load(){
+  const dot = $('#dot'); dot.className = 'dot';
+  $('#err').innerHTML = '';
+  const sym = ($('#symbol').value||'BTCUSDT').trim().toUpperCase();
+  const tf = $('#tf').value, eq = $('#equity').value||'10000';
+  const url = `/api/analyze?symbol=${encodeURIComponent(sym)}&tf=${encodeURIComponent(tf)}&equity=${encodeURIComponent(eq)}`;
+  try{
+    const r = await fetch(url);
+    const txt = await r.text();
+    if(!r.ok){
+      let msg = txt;
+      try{ const j = JSON.parse(txt); msg = j.error + (j.hint?'\n'+j.hint:''); }catch(e){}
+      throw new Error(msg);
+    }
+    const d = JSON.parse(txt);
+    render(d);
+    dot.className = 'dot on';
+  }catch(e){
+    dot.className = 'dot err';
+    $('#err').innerHTML = `<div class="errbox">falha ao carregar ${esc(sym)} ${esc(tf)}\n${esc(e.message)}</div>`;
+    $('#stamp').textContent = 'erro ' + new Date().toLocaleTimeString('pt-BR');
+  }
+}
+
+$('#go').addEventListener('click', load);
+$('#symbol').addEventListener('keydown', e => { if(e.key==='Enter') load(); });
+$('#tf').addEventListener('change', load);
+load();
+timer = setInterval(load, 30000);
+</script>
+</body>
+</html>
