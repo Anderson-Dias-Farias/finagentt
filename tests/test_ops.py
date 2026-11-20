@@ -40,6 +40,10 @@ class OpsTest(unittest.TestCase):
                      r, NOW + 10_000, abs(r) * 1.5, -abs(r) * 0.4),
                 )
 
+    def test_health_expoe_versao_do_pacote(self):
+        import finagent
+        self.assertEqual(ops.health()["version"], finagent.__version__)
+
     def test_performance_separa_setup_tf_e_conviccao(self):
         self._seed([
             ("Liquidity sweep + reversao", "LONG", 72, "WIN_TP1", 2.0),

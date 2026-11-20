@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 from . import envfile, journal
+from . import __version__ as _VERSION
 
 DATA_DIR = Path(os.environ.get("FINAGENT_DATA", Path.home() / ".finagent"))
 BACKUP_DIR = Path(os.environ.get("FINAGENT_BACKUP_DIR", DATA_DIR / "backups"))
@@ -158,7 +159,7 @@ def state() -> dict:
 def health() -> dict:
     st = state()
     ok = st["db"]["exists"] and st["db"]["writable"]
-    return {"ok": ok, "uptime_s": st["uptime_s"], "db": st["db"],
+    return {"ok": ok, "version": _VERSION, "uptime_s": st["uptime_s"], "db": st["db"],
             "signals": st["counts"]["signals"], "open": st["counts"]["open"],
             "last_evaluate_ts": st["runtime"]["evaluate_ts"]}
 

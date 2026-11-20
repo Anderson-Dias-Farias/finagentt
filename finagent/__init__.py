@@ -1,7 +1,7 @@
 """FinAgent - agente de analise de fluxo, volume, liquidez e estrutura de mercado."""
 from .envfile import load as _load_env
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 # O .env precisa entrar ANTES de qualquer submodulo ler o ambiente: os caminhos
 # (FINAGENT_DB, FINAGENT_DATA, FINAGENT_BACKUP_DIR) e os intervalos sao resolvidos
