@@ -14,9 +14,20 @@ DB_PATH = Path(os.environ.get("FINAGENT_DB", Path.home() / ".finagent" / "journa
 
 def _conn() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    c = sqlite3.connect(DB_PATH)
+    c = sqlite3.connect(DB_PATH, timeout=30)
     c.row_factory = sqlite3.Row
+    # WAL: leitor (dashboard/backup) nao bloqueia escritor (monitor) e vice-versa.
+    c.execute("PRAGMA journal_mode=WAL")
+    c.execute("PRAGMA busy_timeout=30000")
+    c.execute("PRAGMA synchronous=NORMAL")
     return c
+
+
+def _ensure_column(c: sqlite3.Connection, table: str, name: str, decl: str) -> None:
+    """Migracao aditiva: adiciona coluna se faltar. Nunca derruba dado existente."""
+    cols = {r["name"] for r in c.execute(f"PRAGMA table_info({table})").fetchall()}
+    if name not in cols:
+        c.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
 
 
 def init() -> None:
@@ -31,6 +42,9 @@ def init() -> None:
             outcome TEXT DEFAULT 'OPEN', exit_price REAL, r_multiple REAL,
             closed_ts INTEGER, mfe_pct REAL, mae_pct REAL
         )""")
+        # bancos criados antes destas colunas continuam funcionando
+        _ensure_column(c, "signals", "mfe_pct", "REAL")
+        _ensure_column(c, "signals", "mae_pct", "REAL")
         c.execute("CREATE INDEX IF NOT EXISTS idx_sig_open ON signals(outcome, ts)")
 
 

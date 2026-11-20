@@ -1,0 +1,33 @@
+# Docker Compose para Easypanel (Stacks > Compose).
+# Alternativa ao App com Git: aqui o volume persistente e declarado explicitamente.
+services:
+  finagent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      FINAGENT_DATA: /data
+      FINAGENT_DB: /data/journal.db
+      FINAGENT_STATE: /data/state.json
+      FINAGENT_BACKUP_DIR: /data/backups
+      FINAGENT_EVAL_INTERVAL: "600"       # resolve sinais abertos a cada 10 min
+      FINAGENT_BACKUP_INTERVAL: "21600"   # backup consistente a cada 6h
+      FINAGENT_BACKUP_KEEP: "14"
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    volumes:
+      - finagent-data:/data
+    expose:
+      - "3000"
+    ports:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:3000/api/health', timeout=4).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  finagent-data:

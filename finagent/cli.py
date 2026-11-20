@@ -192,16 +192,33 @@ def build_parser() -> argparse.ArgumentParser:
     m.add_argument("--once", action="store_true", help="roda uma vez e sai")
     m.set_defaults(func=cmd_monitor)
 
-    w = sub.add_parser("serve", help="dashboard web (http://127.0.0.1:3000)")
+    w = sub.add_parser("serve", help="dashboard web + operacao continua (porta 3000)")
     w.add_argument("--host", default="127.0.0.1")
     w.add_argument("--port", type=int, default=3000)
+    w.add_argument("--monitor", action="store_true", help="roda o monitor em thread")
+    w.add_argument("--symbols", help="lista separada por virgula (default BTC,ETH,SOL)")
+    w.add_argument("--tf", default="15m", help="timeframe do monitor")
+    w.add_argument("--interval", type=int, default=300, help="segundos entre ciclos do monitor")
     w.set_defaults(func=cmd_serve)
+
+    bk = sub.add_parser("backup", help="copia consistente do journal SQLite")
+    bk.set_defaults(func=cmd_backup)
     return p
 
 
 def cmd_serve(args) -> int:
     from .webapp import serve
-    return serve(host=args.host, port=args.port)
+    syms = [data.normalize(s) for s in args.symbols.split(",")] if args.symbols else None
+    return serve(host=args.host, port=args.port, monitor=args.monitor,
+                 symbols=syms, tf=args.tf, interval=args.interval)
+
+
+def cmd_backup(args) -> int:
+    from . import ops
+    ops.init_storage()
+    path = ops.backup()
+    print(f"backup: {path}" if path else "nada para copiar (journal ainda nao existe)")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:

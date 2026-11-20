@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import analysis
+from . import analysis, ops
 from .report import to_json
 
 WEB = Path(__file__).resolve().parent.parent / "web"
@@ -67,7 +67,26 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path.rstrip("/") or "/"
 
         if path == "/api/health":
-            self._json(200, {"ok": True, "cached_keys": len(_cache), "ttl_s": TTL})
+            try:
+                body = ops.health()
+            except Exception as exc:
+                self._json(503, {"ok": False, "error": f"{type(exc).__name__}: {exc}"})
+                return
+            self._json(200 if body.get("ok") else 503, body)
+            return
+
+        if path == "/api/state":
+            try:
+                self._json(200, ops.state())
+            except Exception as exc:
+                self._json(500, {"error": f"{type(exc).__name__}: {exc}"})
+            return
+
+        if path == "/api/report":
+            try:
+                self._json(200, ops.performance())
+            except Exception as exc:
+                self._json(500, {"error": f"{type(exc).__name__}: {exc}"})
             return
 
         if path == "/api/analyze":
@@ -111,7 +130,8 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         self._json(404, {"error": "rota nao encontrada",
-                         "paths": ["/", "/api/analyze", "/api/health"]})
+                         "paths": ["/", "/api/analyze", "/api/health", "/api/state",
+                                   "/api/report"]})
 
 
 def make_server(host: str = "127.0.0.1", port: int = 3000) -> ThreadingHTTPServer:
@@ -120,9 +140,21 @@ def make_server(host: str = "127.0.0.1", port: int = 3000) -> ThreadingHTTPServe
     return srv
 
 
-def serve(host: str = "127.0.0.1", port: int = 3000) -> int:
+def serve(host: str = "127.0.0.1", port: int = 3000, monitor: bool = False,
+          symbols: list[str] | None = None, tf: str = "15m", interval: int = 300) -> int:
+    storage = ops.init_storage()
+    started = ops.start_background()
+    if monitor:
+        from . import monitor as _monitor
+        syms = symbols or ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+        threading.Thread(target=_monitor.run,
+                         args=(syms, tf, interval, 10_000, 1.0, True, False),
+                         daemon=True, name="finagent-monitor").start()
+        started.append("monitor")
     srv = make_server(host, port)
-    print(f"finagent dashboard em http://{host}:{port}  (Ctrl+C para parar)")
+    print(f"finagent dashboard em http://{host}:{port}  (Ctrl+C para parar)", flush=True)
+    print(f"  db: {storage['db']}   backup: {storage['backup_dir']}", flush=True)
+    print(f"  background: {', '.join(started) or 'nenhum'}", flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
