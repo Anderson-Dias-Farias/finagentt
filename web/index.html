@@ -19,8 +19,9 @@
        -webkit-font-smoothing:antialiased}
   .wrap{max-width:1360px;margin:0 auto;padding:0 18px 60px}
 
-  header{position:sticky;top:0;z-index:20;backdrop-filter:blur(10px);
-    background:rgba(10,13,18,.86);border-bottom:1px solid var(--line)}
+  header{position:sticky;top:0;z-index:20;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    background:rgba(10,13,18,.94);border-bottom:1px solid var(--line2);
+    box-shadow:0 10px 26px -18px rgba(0,0,0,.95)}
   .bar{max-width:1360px;margin:0 auto;padding:12px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
   .brand{font-family:var(--mono);font-weight:700;letter-spacing:.14em;font-size:15px}
   .brand span{color:var(--acc)}
@@ -104,8 +105,8 @@
   .pat .nm{font-weight:600;font-size:13px}
   .pat .dt{grid-column:1/-1;font-size:11.5px;color:var(--dim);font-family:var(--mono)}
   .pat .cf{font-family:var(--mono);font-size:12px;text-align:right}
-  .bar{height:4px;background:#0b0f16;border-radius:99px;margin-top:4px;overflow:hidden}
-  .bar i{display:block;height:100%;background:linear-gradient(90deg,#7c3aed,#38bdf8)}
+  .meter{height:4px;background:#0b0f16;border-radius:99px;margin-top:4px;overflow:hidden}
+  .meter i{display:block;height:100%;background:linear-gradient(90deg,#7c3aed,#38bdf8)}
 
   .plan{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:11px}
   .plan div{background:#0c1118;border:1px solid var(--line);border-radius:9px;padding:10px 11px}
@@ -216,7 +217,7 @@ function render(d){
         <span class="tag">${esc(q.status)}</span></div>
       <div class="cf ${dc}">${q.conf}/100</div>
       <div class="dt">${esc(q.detail)}${q.target!=null?' · alvo '+px(q.target):''}
-        <div class="bar"><i style="width:${q.conf}%"></i></div></div>
+        <div class="meter"><i style="width:${q.conf}%"></i></div></div>
     </div>`;}).join('')
     : '<div class="dim" style="font-family:var(--mono);font-size:12px">nenhum padrão clássico fechado nesta janela</div>';
 
