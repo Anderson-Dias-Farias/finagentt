@@ -13,7 +13,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import journal
+from . import envfile, journal
 
 DATA_DIR = Path(os.environ.get("FINAGENT_DATA", Path.home() / ".finagent"))
 BACKUP_DIR = Path(os.environ.get("FINAGENT_BACKUP_DIR", DATA_DIR / "backups"))
@@ -151,6 +151,7 @@ def state() -> dict:
         "runtime": runtime,
         "env": {"eval_interval_s": EVAL_INTERVAL, "backup_interval_s": BACKUP_INTERVAL,
                 "keep_backups": KEEP_BACKUPS},
+        "postgres": envfile.postgres_status(),
     }
 
 

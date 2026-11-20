@@ -5,7 +5,7 @@ import argparse
 import json
 import sys
 
-from . import analysis, data, journal, report
+from . import analysis, data, envfile, journal, report
 
 
 def cmd_analyze(args) -> int:
@@ -222,6 +222,7 @@ def cmd_backup(args) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    envfile.load()  # .env da raiz (nao sobrescreve env real)
     args = build_parser().parse_args(argv)
     try:
         return args.func(args)

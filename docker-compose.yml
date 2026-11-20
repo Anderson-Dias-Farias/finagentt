@@ -16,6 +16,9 @@ services:
       FINAGENT_BACKUP_KEEP: "14"
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      # Postgres: opcional. Preencha no painel do Easypanel (ou no .env ao lado) se
+      # quiser que o /api/state mostre o status da conexao. Journal segue em SQLite.
+      DATABASE_URL: ${DATABASE_URL:-}
     volumes:
       - finagent-data:/data
     expose:

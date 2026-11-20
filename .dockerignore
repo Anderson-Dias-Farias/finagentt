@@ -15,5 +15,6 @@ __pycache__
 .venv
 venv
 .env
+.env.example
 docker-compose.yml
 README.md

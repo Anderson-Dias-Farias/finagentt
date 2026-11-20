@@ -3,3 +3,8 @@ __pycache__/
 *.log
 .journal/
 *.json.tmp
+.env
+.env.local
+*.db
+*.db-wal
+*.db-shm

@@ -115,6 +115,41 @@ sqlite3 /tmp/journal.db "select setup, count(*), round(avg(r_multiple),2) from s
 Alternativa ao vivo: `ssh -L 3000:127.0.0.1:3000 vps` e eu leio `/api/state` no
 localhost, sem publicar o serviço.
 
+## Postgres (opcional) e o arquivo `.env`
+
+O `.env` da raiz é carregado no boot por `finagent/envfile.py` (stdlib, sem python-dotenv).
+Regra: **variável já definida no ambiente real tem prioridade** — o arquivo nunca
+sobrescreve o painel do Easypanel, systemd ou o shell.
+
+```bash
+cp .env.example .env      # depois preencha
+```
+
+```dotenv
+DATABASE_URL=postgresql://finagent:SENHA@finagent_db:5432/finagent?sslmode=disable
+```
+
+- **Local:** `.env` é o caminho normal; `.gitignore` e `.dockerignore` bloqueiam o arquivo
+  (senha nunca entra em commit nem na imagem).
+- **Produção (Easypanel):** cole as variáveis no painel do serviço (Environment) — não
+  envie `.env`. Host interno do Postgres costuma ser `<projeto>_<serviço>`, a porta é a
+  interna do compose (5432), e `sslmode=disable` é o habitual na rede interna.
+- **O que a variável faz hoje:** `/api/state` passa a mostrar o bloco `postgres`
+  (`configured`, `host`, `port`, `database`, `user`, `has_password`, `tcp_reachable`) e o
+  `/api/health` continua 200. A senha **nunca** sai na API.
+- **O que ela não faz:** o journal (sinais, backtest) continua em SQLite. Migrar de fato
+  para Postgres exige driver (`psycopg`) e reescrita da camada de storage — decisão em
+  aberto, não é efeito colateral de preencher a variável.
+
+Verificação rápida no servidor:
+
+```bash
+curl -s localhost:3000/api/state | python3 -c "import json,sys; print(json.load(sys.stdin)['postgres'])"
+```
+
+Interpretação: `tcp_reachable: false` = URL errada, host inacessível ou Postgres parado.
+`true` = a rede resolve e a porta responde (não valida usuário/senha/banco).
+
 ## O que ainda não está pronto
 
 - Auto-deploy só existe depois do remote (Passo 0).
