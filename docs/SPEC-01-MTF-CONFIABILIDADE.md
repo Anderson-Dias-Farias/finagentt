@@ -32,8 +32,8 @@ inventário de reaproveitamento, fases e gates.
 - Repositório: 2 commits (`73a82c3`, `60a71f4`), árvore limpa.
 - Testes: 43/43 OK (`python3 -m unittest discover -s tests`).
 - Python puro/stdlib. Front em `http.server` na porta 3000. Sem pandas/numpy em
-  runtime — e deve continuar assim (o port de qualquer lógica do criptolua-v2 é
-  manual, não é instalação de dependência).
+  runtime — e deve continuar assim (qualquer lógica adotada de terceiro entra como
+  reimplementação manual, nunca como dependência instalada).
 
 ### 1.2 Dados que entram na análise
 
@@ -167,8 +167,9 @@ matriz + classe. Swing e daytrade são parâmetros, não módulos separados.
 ### D4 — Confiança passa a ser medida, com amostra explícita
 
 Todo número de confiança carrega `(n=amostra, escopo)`. Sem amostra mínima, o campo
-é `INSUFFICIENT_DATA` — nunca um número inventado. Regras herdadas do criptolua-v2
-(ver §5.4): `probation n=8`, `validated n=20`.
+é `INSUFFICIENT_DATA` — nunca um número inventado. Política de amostra adotada:
+`probation n=8`, `validated n=20` — herdada da única medição real que temos (§1.7),
+não de biblioteca de terceiro.
 
 ### D5 — Journal é a fonte de verdade
 
@@ -191,7 +192,7 @@ formação pode ser exibido como "em curso", jamais como sinal.
 | Q2 | TF superior veta ou desconta? | (a) gate absoluto (b) desconto de peso | **(a)** gate, com exceção explícita para setups de reversão | F2 |
 | Q3 | Perfis fixos ou configuráveis? | (a) 2 perfis fixos (b) lista livre de TFs | **(a)** agora, (b) depois — simplicidade primeiro | F2 |
 | Q4 | Divergência cross-TF: estrutura ou momentum? | (a) estrutura/fluxo (b) RSI/MACD multi-TF (c) ambos | **(a)** primeiro; momentum entra como modificador (Q4b) | F2/F3 |
-| Q5 | Corpus histórico: de onde? | (a) freqtrade `download-data` (b) Binance REST paginado (c) híbrido | **(c)** freqtrade para corpus bulk, Binance para amostra de validação | F1 |
+| Q5 | Corpus histórico: de onde? | (a) `data.binance.vision` ZIP mensal (b) Binance REST paginado (c) freqtrade `download-data` | **(a)** para bulk (candles + funding + metrics ± ticks), **(b)** só para amostra recente. Freqtrade fica fora do caminho de dados | F1 |
 | Q6 | Como medir acerto? | (a) horizonte fixo N candles (b) target/stop em R (c) ambos | **(c)** R para trade simulado, horizonte fixo para sinal | F3 |
 | Q7 | Reprocessar histórico antigo? | (a) começar limpo (b) backfill | **(a)** limpo com `schema_version`; backfill só com timestamp original | F3 |
 | Q8 | Sweep com que proteção contra overfit? | (a) in-sample puro (b) walk-forward (c) walk-forward + out-of-sample final | **(c)**, out-of-sample reservado e nunca tocado no sweep | F4 |
@@ -200,52 +201,88 @@ formação pode ser exibido como "em curso", jamais como sinal.
 
 ## 5. Varredura de reaproveitamento (o que já existe no git)
 
-Levantamento em `/home/anderson/Projetos`, não em memória.
+A varredura online está consolidada em [`SCAN-01-FERRAMENTAS.md`](SCAN-01-FERRAMENTAS.md):
+repos do GitHub verificados um a um (estrelas, último push, licença) e endpoints da
+Binance testados por HEAD/Range. Abaixo, só o que muda decisão.
 
-### 5.1 Copiar conceito, reimplementar em stdlib (alto valor)
+`criptolua` / `criptolua-v2` **não é fonte de nada** nesta spec. Acerto < 50%,
+-1,07R e SHORT 2,06% (§1.7) desqualificam o motor como referência de lógica.
+Ele aparece na §5.4 apenas como **registro de falha medida**, para não repetir.
 
-| Origem | Arquivo | O que tem | Decisão |
-|---|---|---|---|
-| criptolua-v2 | `lib/signals/price-action-signal-engine.ts:1104` (`higherTimeframeBias`) | Taxonomia `ALIGNED_LONG / ALIGNED_SHORT / CONFLICT_LONG_PULLBACK / CONFLICT_SHORT_PULLBACK / RANGE / INSUFFICIENT_DATA` combinando 4h e 1h | **Portar e estender** para 3 TFs (1M/1W/1D e 1D/4H/1H). É a mesma ideia da D2, já validada em produção |
-| criptolua-v2 | `types/index.ts:17` (`HTFBias`) | Contrato fechado dos 6 estados | Copiar nomes verbatim (consistência entre projetos) |
-| criptolua-v2 | `lib/price-action/momentum-divergence.ts` | Divergência RSI + estocástico com pivôs, força WEAK/MEDIUM/STRONG, confirmação dupla | **Portar** como camada de divergência de momentum |
-| criptolua-v2 | `lib/signals/historical-confidence-engine.ts` | Confiança por amostra histórica: escopos `EXACT`/`CONTEXT`/`STRATEGY_DIRECTION`, `MINIMUM_INFORMED_SAMPLE=8`, `MINIMUM_FULL_SAMPLE=20` | **Portar o conceito**; fonte de amostras vira o journal do finagent |
-| criptolua-v2 | `lib/domain/strategy-validation.ts` | Gate de validação: `minimumSampleSize 20`, `minimumExpectancyR 0.15`, `minimumProfitFactor 1.15`, `minimumWinRatePct 30`, `probationSampleSize 8`, drawdown 12/18% | **Adotar como gate** da F3 (números já testados em produção) |
-| criptolua-v2 | `scripts/auditar-historico-sinais.ts:283` (`evaluateSignal`) | Avaliação de sinal histórico → `WIN/LOSS/AMBIGUOUS/INCONCLUSIVE` por target/stop | **Portar como esqueleto** do avaliador do journal |
-| criptolua-v2 | `lib/regime/market-regime-engine.ts` | Classificação de regime de mercado | **Portar** — confiança precisa ser condicionada por regime |
+### 5.1 Dados históricos — resolvido, e melhor que o freqtrade
 
-### 5.2 Usar como referência de parâmetro, sem portar código
+`data.binance.vision` publica ZIP mensal sem chave. Verificado por HEAD real:
+spot aggTrades `2020-01` = 214,9 MB; futures UM aggTrades `2020-01` = 102,6 MB;
+klines `1h` `2019-01` = 40 KB; fundingRate = 906 bytes; metrics diário = 11 KB/dia
+(contém OI, long/short ratio, taker buy/sell).
 
-| Origem | Arquivo | Uso |
+Limites **medidos** da REST da Binance (testados, não documentados):
+
+- `aggTrades` com `fromId` antigo (`1`, `1000`, `1000000`) → satura em `2024-11-20`.
+  **Ticks pela REST cobrem só ~12 meses.** Order flow histórico exige o ZIP mensal.
+- `klines` com `startTime=0` → vai ao início do par: `1d` desde `2017-08-17`,
+  paginável 1000 por vez. Cobre todo o backtest de candles.
+- `1w`/`1M` respondem na REST mas **não são publicados** em arquivo mensal →
+  derivar por agregação do `1d`.
+- `liquidationSnapshot` foi descontinuado (404).
+
+Decisão: `scripts/fetch_data.py` em stdlib puro (ZIP → JSONL + manifesto com hash),
+contra `data.binance.vision`. Sem pandas, sem ccxt, sem freqtrade no caminho.
+
+### 5.2 Backtest — freqtrade como juiz, nunca como dependência
+
+| Repo | ★ | Push | Licença | Decisão |
+|---|---|---|---|---|
+| `freqtrade/freqtrade` | 57.104 | 2026-11-19 | GPL-3.0 | **CLI em `.venv-ft` isolado**, só para conferir fee/fill/slippage do nosso backtest. Nunca `import` |
+| `jesse-ai/jesse` | 8.823 | 2026-11-17 | MIT | Ler semântica de fee/fill cripto |
+| `edtechre/pybroker` | 3.724 | 2026-11-16 | NOASSERTION | Ler desenho de **walk-forward** (F4) |
+| `pmorissette/bt` | 3.045 | 2026-11-20 | MIT | Referência de alocação, se virar multi-ativo |
+| `mementum/backtrader` | 23.766 | **2024-08** | GPL-3.0 | **Morto.** Descartar |
+| `polakowo/vectorbt` | 9.902 | 2026-11-11 | NOASSERTION | Open congelado, empurra PRO pago. Descartar |
+| `kernc/backtesting.py` | 9.267 | 2026-08 | **AGPL-3.0** | Licença contamina serviço. Descartar |
+| `nautilus_trader`, `hummingbot` | 31.7k / 21.3k | ativos | LGPL/Apache | Execução, não pesquisa. Fora |
+| `QuantConnect/Lean` | 22.631 | ativo | Apache-2.0 | Infra .NET. Fora |
+
+### 5.3 Order flow — não há o que portar
+
+O melhor repo Python da categoria tem **269★ e só desenha** footprint
+(`OrderflowChart`). Depois: 225★ screener TS, 146★ reshape de tick
+(`AndreaFerrante/Orderflow`, MIT), 139★ TCA (`flowforge`, BSD-2). Nenhuma
+biblioteca madura de tape reading em Python existe aberta.
+
+Leitura: `flow.py` e `volume.py` já estão na fronteira do que existe. A lacuna não
+é indicador, é **medição com tick real** — que a §5.1 agora torna possível.
+
+Duas referências de definição (ler, não instalar): `flowforge` para TCA/slippage
+por faixa de notional; `AndreaFerrante/Orderflow` para agrupamento de tick em barra
+de volume e definição de delta/imbalance por nível.
+
+Estrutura/SMC: `joshyattridge/smart-money-concepts` (2.252★, MIT, pandas) é a única
+com adoção real — serve para calibrar threshold de swing e regra de invalidação do
+BOS/CHoCH que já temos, contra a definição que o mercado usa.
+
+### 5.4 Confluência MTF — vazio confirmado (a spec é original)
+
+Busca por nome/descrição/topic (`multi timeframe confluence`, `topic:market-structure`,
+`topic:order-flow`, `topic:volume-profile`): **nenhum repo com adoção relevante faz
+hierarquia multi-TF com classificação de conflito**. O que existe é indicador Pine
+fechado, soma de pesos no mesmo TF (justamente o erro da §1.3) ou indicador que lê
+candle aberto do TF superior e repinta.
+
+Consequência: D1 e D2 não têm precedente aberto para copiar. Isso é risco declarado,
+não bug de pesquisa.
+
+### 5.5 Registro de falha medida (não é fonte de lógica)
+
+| Documento | Linhas | Por que consta |
 |---|---|---|
-| criptolua-v2 | `lib/price-action/{bos-choch,structure,swings,liquidity-sweep,series-pivots}.ts` | O finagent já tem equivalente Python; comparar thresholds e definição de swing, não reimplementar |
-| criptolua-v2 | `lib/engines/volume-profile-engine.ts` | Conferir definição de POC/VAH/VAL e tratamento de bins vs. o `finagent/volume.py` |
-| criptolua-v2 | `lib/domain/score-weights.ts` | Pesos de score de mercado (fear/greed, funding, OI, dominância) — insumo para a F4, não para o veredito técnico |
-| criptolua-v2 | `lib/ingestion/binance-klines.ts:24` | `VALID_TIMEFRAMES` inclui `1w` e `1M`; referência de paginação e limites ao adicionar esses TFs no finagent |
+| `criptolua-v2/docs/analise-historico-sinais-executiva.md` | 47 | 3.591 sinais, 28,40% win, -1,07R, SHORT 2,06%, 61% inconclusivos. Consolidado na §1.7 |
+| `criptolua-v2/docs/analise-historico-sinais.md` | 116 | Metodologia de outcome (janela, ambíguo, inconclusivo) — útil como **anti-exemplo** do que não fazer: 61% ficou sem resolução |
 
-### 5.3 Ferramenta de backtest e histórico
+Nada além disso é lido do criptolua. Nenhum arquivo TypeScript é importado nem
+portado pelo finagent.
 
-| Origem | O que é | Decisão |
-|---|---|---|
-| `/home/anderson/Projetos/freqtrade` | Engine completo de backtest/hyperopt em código-fonte. **Não está instalado** no interpretador do sistema (`import freqtrade` falha fora do diretório do repo; o `find_spec` anterior deu falso positivo por cwd). `user_data/data` e `backtest_results` existem mas estão **vazios** — não há corpus baixado | Duas opções na F1: (a) instalar freqtrade num venv dedicado (`python3 -m venv .venv-ft` + `pip install -e /home/anderson/Projetos/freqtrade`) e usar `download-data`/`backtesting` como fonte e validação cruzada; (b) dispensar freqtrade e paginar direto da Binance REST, que já foi **verificado agora**: `1w` e `1M` respondem 60 candles para BTCUSDT. Recomendação: (a) para corpus bulk (retomável, com fee/slippage corretos), (b) como fallback e para amostras pontuais. Nunca acoplar ao runtime do finagent |
-| `/home/anderson/Projetos/freqtrade/tests/optimize/*` | 461 referências a backtest, incluindo `test_backtesting.py` | Ler para copiar semântica de fee, slippage, fill e lookahead — os erros clássicos estão testados lá |
-
-### 5.4 Conhecimento já medido no criptolua-v2 (ler antes da F2)
-
-| Documento | Linhas | O que já resolveu / o que evitar |
-|---|---|---|
-| `docs/analise-historico-sinais-executiva.md` | 47 | Números reais: 28,40% win, -1,07R, SHORT 2,06%, 61% inconclusivos. Já consolidado na §1.7 |
-| `docs/plano-confiabilidade-motor-sinais.md` | 559 | Plano de endurecimento: separar score agregado em blocos mínimos obrigatórios, bloquear `TRADE_READY` sem confirmação estrutural, revalidar antes do alerta. **É o ancestral direto da D1** |
-| `docs/analise-historico-sinais.md` | 116 | Metodologia da avaliação de outcome (janela, ambíguos, inconclusivos) — base da F3 |
-| `docs/estrategias-gatilhos-sinais.md` | 383 | Catálogo de gatilhos por estratégia; referência para o `trigger_tf` |
-| `docs/motor-estrategias-especificacao-tecnica-2026-07-08.md` | — | Especificação do motor; conferir contratos antes de criar os do finagent |
-| `AUDITORIA-RADAR-JOURNAL.md`, `PLANO-RADAR-V2.md`, `plans/` | — | Decisões e dívidas do journal antigo |
-| `cripto-lua-v2-estrategias-evolucao.md`, `avaliacao-cripto-lua-v2-motor-trade.md` | — | Evolução e avaliação do motor de trade |
-
-Regra: desses documentos saem **decisões**, não código. Nenhum arquivo TypeScript
-é importado pelo finagent.
-
-### 5.5 Explicitamente NÃO reaproveitar
+### 5.6 Explicitamente NÃO reaproveitar
 
 - Prisma/Next/TypeScript como runtime do finagent (o núcleo é stdlib).
 - `lib/signals/opportunity-engine.ts` (79 KB) — monolito acoplado a DB e tipos do app.
@@ -301,15 +338,16 @@ estrutura. Sem I/O, sem rede, sem relógio — testável sem mock.
 
 **F0 — Baseline e inventário** (0,5 dia)
 Congelar os números atuais (veredito, conviction, viés por TF) para 6 símbolos em 2
-datas fixas. Ler os 4 documentos do §5.4. Corrigir P5 (matar `_tf_bias`).
+datas fixas. Ler os 2 documentos do §5.5 (evidência de falha, para não repetir). Corrigir P5 (matar `_tf_bias`).
 Gate G0: baseline reproduzível por script.
 
 **F1 — Corpus histórico** (1 dia)
-Baixar 1h/4h/1d/1w/1M, 2019-01→hoje, BTC/ETH/SOL/BNB/XRP/ADA. **Não existe corpus
-em disco hoje** (freqtrade `user_data/data` vazio, nenhum CSV/JSONL/parquet >500KB em
-`/home/anderson/Projetos`) — o histórico precisa ser baixado. Caminho preferido:
-instalar freqtrade em venv dedicado e usar `download-data` (retomável); alternativa
-já verificada: Binance REST paginado (`1w`/`1M` respondem 60 candles para BTCUSDT).
+Baixar 1h/4h/1d, 2019-01→hoje, BTC/ETH/SOL/BNB/XRP/ADA, de `data.binance.vision`
+(ZIP mensal, sem chave, verificado por HEAD). `1w`/`1M` derivam de agregação do `1d`
+— não são publicados em arquivo mensal. Funding/OI vêm de `monthly/fundingRate` e
+`daily/metrics`. `scripts/fetch_data.py` em stdlib: baixa, valida, converte para
+JSONL e grava manifesto com hash, tudo retomável. Amostra de tick (1 mês de
+aggTrades spot) só para calibrar order flow — a REST limita `aggTrades` a ~12 meses.
 Converter para o formato interno (JSONL por símbolo/TF), versionar manifesto com
 hash e contagem de candles.
 Gate G1: manifesto confere (sem gaps além dos documentados pela Binance), 1M com
@@ -363,7 +401,7 @@ inteira verde; README documenta os rótulos.
 - **1M/1W escassos em altcoins.** Mitigação: Q1 (estrutura em vez de EMA) +
   fallback hierárquico para o TF abaixo.
 - **Mudança de regime estrutural** (2020-21 vareta vs. 2024-26). Mitigação:
-  confiança condicionada por regime (portado do criptolua-v2), nunca global.
+  confiança condicionada por regime, nunca global (regime é camada própria, sem porte externo).
 
 ## 10. Não-objetivos
 
