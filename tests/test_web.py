@@ -55,6 +55,21 @@ class TestWeb(unittest.TestCase):
         self.assertEqual(code, 404)
         self.assertIn("rota nao encontrada", json.loads(body)["error"])
 
+    def test_ativo_e_escolhido_em_select(self):
+        """Ativo vem de <select> fechado: input livre mandava simbolo invalido (HTTP 502)."""
+        import re
+        code, body = self.get("/")
+        self.assertEqual(code, 200)
+        self.assertNotIn('<input id="symbol"', body)
+        block = re.search(r'<select id="symbol".*?</select>', body, re.S)
+        self.assertIsNotNone(block, "select#symbol sumiu da pagina")
+        valores = re.findall(r'<option value="([^"]+)"', block.group(0))
+        self.assertGreaterEqual(len(valores), 20)
+        self.assertEqual(len(valores), len(set(valores)), "ativo duplicado no select")
+        self.assertTrue(all(v.endswith("USDT") for v in valores))
+        self.assertRegex(block.group(0), r'<option value="BTCUSDT" selected>')
+        self.assertIn("localStorage.setItem('finagent.symbol'", body)
+
 
 if __name__ == "__main__":
     unittest.main()

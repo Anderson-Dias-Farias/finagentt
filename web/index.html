@@ -32,7 +32,7 @@
   input,select,button{font-family:var(--mono);font-size:13px;color:var(--txt);
     background:var(--card);border:1px solid var(--line2);border-radius:8px;padding:7px 10px;outline:none}
   input:focus,select:focus{border-color:var(--acc)}
-  input#symbol{width:118px;text-transform:uppercase;letter-spacing:.06em}
+  select#symbol{width:132px;letter-spacing:.04em;cursor:pointer}
   input#equity{width:92px}
   button{cursor:pointer;transition:.15s}
   button:hover{background:var(--card2);border-color:#3b475e}
@@ -136,7 +136,7 @@
     .comp{grid-template-columns:82px 1fr 44px;gap:8px}
     .bar{padding:10px 14px}
     .ctl{width:100%;margin-left:0}
-    input#symbol{flex:1;width:auto}
+    select#symbol{flex:1;width:auto}
     .mini{grid-template-columns:repeat(3,minmax(0,1fr))}
     .plan{grid-template-columns:repeat(auto-fit,minmax(104px,1fr))}
   }
@@ -148,7 +148,33 @@
     <div class="dot" id="dot"></div>
     <div class="brand">FIN<span>AGENT</span></div>
     <div class="ctl">
-      <input id="symbol" value="BTCUSDT" spellcheck="false" autocomplete="off">
+      <select id="symbol" aria-label="ativo">
+        <option value="BTCUSDT" selected>BTC/USDT</option>
+        <option value="ETHUSDT">ETH/USDT</option>
+        <option value="SOLUSDT">SOL/USDT</option>
+        <option value="BNBUSDT">BNB/USDT</option>
+        <option value="XRPUSDT">XRP/USDT</option>
+        <option value="DOGEUSDT">DOGE/USDT</option>
+        <option value="ADAUSDT">ADA/USDT</option>
+        <option value="AVAXUSDT">AVAX/USDT</option>
+        <option value="LINKUSDT">LINK/USDT</option>
+        <option value="DOTUSDT">DOT/USDT</option>
+        <option value="LTCUSDT">LTC/USDT</option>
+        <option value="TRXUSDT">TRX/USDT</option>
+        <option value="SUIUSDT">SUI/USDT</option>
+        <option value="NEARUSDT">NEAR/USDT</option>
+        <option value="APTUSDT">APT/USDT</option>
+        <option value="ARBUSDT">ARB/USDT</option>
+        <option value="OPUSDT">OP/USDT</option>
+        <option value="ATOMUSDT">ATOM/USDT</option>
+        <option value="BCHUSDT">BCH/USDT</option>
+        <option value="ETCUSDT">ETC/USDT</option>
+        <option value="FILUSDT">FIL/USDT</option>
+        <option value="INJUSDT">INJ/USDT</option>
+        <option value="SEIUSDT">SEI/USDT</option>
+        <option value="TIAUSDT">TIA/USDT</option>
+        <option value="WIFUSDT">WIF/USDT</option>
+      </select>
       <select id="tf">
         <option value="5m">5m</option><option value="15m">15m</option>
         <option value="1h" selected>1h</option><option value="4h">4h</option>
@@ -429,8 +455,10 @@ async function load(){
 }
 
 $('#go').addEventListener('click', load);
-$('#symbol').addEventListener('keydown', e => { if(e.key==='Enter') load(); });
+$('#symbol').addEventListener('change', () => { localStorage.setItem('finagent.symbol', $('#symbol').value); load(); });
 $('#tf').addEventListener('change', load);
+const _saved = localStorage.getItem('finagent.symbol');
+if(_saved && [...$('#symbol').options].some(o => o.value === _saved)) $('#symbol').value = _saved;
 load();
 timer = setInterval(load, 30000);
 </script>
